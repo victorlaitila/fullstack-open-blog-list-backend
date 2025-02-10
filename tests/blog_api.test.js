@@ -107,7 +107,7 @@ describe('blog api', () => {
       const errorResponse = await api
         .delete('/api/blogs/1234abcd')
         .expect(400)
-      assert(errorResponse.body.error, 'malformatted id')
+      assert.strictEqual(errorResponse.body.error, 'malformatted id')
       const response = await api.get('/api/blogs')
       assert.strictEqual(response.body.length, blogData.blogs.length)
     })
@@ -143,7 +143,7 @@ describe('blog api', () => {
         .put('/api/blogs/1234abcd')
         .send(newBlogPost)
         .expect(400)
-      assert(errorResponse.body.error, 'malformatted id')
+      assert.strictEqual(errorResponse.body.error, 'malformatted id')
       const response = await api.get('/api/blogs')
       assert.strictEqual(response.body.length, blogData.blogs.length)
     })
