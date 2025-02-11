@@ -1,20 +1,36 @@
 const blogsRouter = require('express').Router()
 const Blog = require('../models/blog')
+const middleware = require('../utils/middleware')
 
 blogsRouter.get('/', async (request, response) => {
-  const blogs = await Blog.find({})
+  const blogs = await Blog.find({}).populate('user', { username: 1, name: 1 })
   response.json(blogs)
 })
 
-blogsRouter.post('/', async (request, response) => {
-  const blog = new Blog(request.body)
-  const result = await blog.save()
+blogsRouter.post('/', middleware.userExtractor, async (request, response) => {
+  const user = request.user
+  const newBlog = new Blog({
+    title: request.body.title,
+    author: request.body.title,
+    url: request.body.url,
+    likes: request.body.likes || 0,
+    user: user.id
+  })
+  const result = await newBlog.save()
+  user.blogs = user.blogs.concat(result._id)
+  await user.save()
   response.status(201).json(result)
 })
 
-blogsRouter.delete('/:id', async (request, response) => {
-  await Blog.findByIdAndDelete(request.params.id)
-  response.status(204).end()
+blogsRouter.delete('/:id', middleware.userExtractor, async (request, response) => {
+  const user = request.user
+  const blog = await Blog.findById(request.params.id)
+  if (user.id.toString() === blog.user.toString()) {
+    await Blog.deleteOne(blog)
+    response.status(204).end()
+  } else {
+    response.status(403).json({ error: 'user not authorized to delete blog post' })
+  }
 })
 
 blogsRouter.put('/:id', async (request, response) => {

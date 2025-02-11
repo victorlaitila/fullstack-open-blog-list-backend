@@ -26,8 +26,6 @@ describe('user api', () => {
         .post('/api/users')
         .send(user)
         .expect(400)
-
-      console.log(errorResponse.body)
       assert.strictEqual(errorResponse.body.error, 'User validation failed: username: username must have at least 3 characters')
       const response = await api.get('/api/users')
       assert.strictEqual(response.body.length, 1)
