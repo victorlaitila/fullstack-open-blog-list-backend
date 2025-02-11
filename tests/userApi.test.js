@@ -2,18 +2,16 @@ const { test, after, beforeEach, describe } = require('node:test')
 const assert = require('node:assert')
 const User = require('../models/user')
 const mongoose = require('mongoose')
+const testHelper = require('./testHelper')
 const supertest = require('supertest')
 const app = require('../app')
-const bcrypt = require('bcrypt')
 
 const api = supertest(app)
 
 describe('user api', () => {
   beforeEach(async () => {
     await User.deleteMany({})
-    const passwordHash = await bcrypt.hash('password', 10)
-    const user = new User({ username: 'user', passwordHash })
-    await user.save()
+    await testHelper.createTestUser()
   })
   describe('creating user', () => {
     test('username below 3 characters results in error with status code 400', async () => {

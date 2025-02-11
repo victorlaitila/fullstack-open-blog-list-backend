@@ -26,7 +26,7 @@ const userExtractor = async (request, response, next) => {
     }
     request.user = user
   } else {
-    return response.status(401).json({ error: 'authentication required' })
+    return response.status(401).json({ error: 'not authorized' })
   }
   next()
 }

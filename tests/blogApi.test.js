@@ -1,17 +1,34 @@
 const { test, after, beforeEach, describe } = require('node:test')
 const assert = require('node:assert')
 const Blog = require('../models/blog')
+const User = require('../models/user')
 const blogData = require('./blogData.json')
+const testHelper = require('./testHelper')
 const mongoose = require('mongoose')
 const supertest = require('supertest')
 const app = require('../app')
 
 const api = supertest(app)
 
+let token;
+
+const loginTestUser = async () => {
+  const loginResponse = await api
+    .post('/api/login')
+    .send({
+      username: 'user',
+      password: 'password'
+    })
+  return loginResponse.body.token
+}
+
 describe('blog api', () => {
   beforeEach(async () => {
     await Blog.deleteMany({})
-    const blogObjects = blogData.blogs.map(blog => new Blog(blog))
+    await User.deleteMany({})
+    const user = await testHelper.createTestUser()
+    token = await loginTestUser()
+    const blogObjects = blogData.blogs.map(blog => new Blog({ ...blog, user: user._id }))
     const promiseArray = blogObjects.map(blog => blog.save())
     await Promise.all(promiseArray)
   })
@@ -32,63 +49,85 @@ describe('blog api', () => {
       assert(!keys.includes('_id'))
     })
   })
+
+  describe('creating blog posts', () => {
+    test('new blog post is created successfully', async () => {
+      const newBlogPost = {
+        title: 'New Blog',
+        author: 'New Author',
+        url: 'newblog.com',
+        likes: 0
+      }
+      await api
+        .post('/api/blogs')
+        .send(newBlogPost)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(201)
+        .expect('Content-Type', /application\/json/)
+      const response = await api.get('/api/blogs')
+      const titles = response.body.map(blog => blog.title)
+      assert(titles.includes('New Blog'))
+      assert.strictEqual(response.body.length, blogData.blogs.length + 1)
+    })
   
-  test('new blog post is created successfully', async () => {
-    const newBlogPost = {
-      title: 'New Blog',
-      author: 'New Author',
-      url: 'newblog.com',
-      likes: 0
-    }
-    await api
-      .post('/api/blogs')
-      .send(newBlogPost)
-      .expect(201)
-      .expect('Content-Type', /application\/json/)
-    const response = await api.get('/api/blogs')
-    const titles = response.body.map(blog => blog.title)
-    assert(titles.includes('New Blog'))
-    assert.strictEqual(response.body.length, blogData.blogs.length + 1)
-  })
-  
-  test('creating new blog post without likes defaults number of likes to 0', async () => {
-    const newBlogPost = {
-      title: 'Blog Without Likes',
-      author: 'Test Author',
-      url: 'nolikes.com'
-    }
-    await api
-      .post('/api/blogs')
-      .send(newBlogPost)
-      .expect(201)
-      .expect('Content-Type', /application\/json/)
-    const response = await api.get('/api/blogs')
-    const addedPost = response.body.find(blog => blog.title === 'Blog Without Likes')
-    assert.strictEqual(addedPost.likes, 0)
-  })
-  
-  test('if title is missing from new blog post, backend responds with status code 400', async () => {
-    const newBlogPost = {
-      author: 'Test Author',
-      url: 'notitle.com',
-      likes: 0
-    }
-    await api
-      .post('/api/blogs')
-      .send(newBlogPost)
-      .expect(400)
-  })
-  
-  test('if url is missing from new blog post, backend responds with status code 400', async () => {
-    const newBlogPost = {
-      title: 'Test Title',
-      author: 'Test Author',
-      likes: 0
-    }
-    await api
-      .post('/api/blogs')
-      .send(newBlogPost)
-      .expect(400)
+    test('fails to create blog post without authorization', async () => {
+      const newBlogPost = {
+        title: 'New Blog',
+        author: 'New Author',
+        url: 'newblog.com',
+        likes: 0
+      }
+      const errorResponse = await api
+        .post('/api/blogs')
+        .send(newBlogPost)
+        .expect(401)
+      assert.strictEqual(errorResponse.body.error, 'not authorized')
+      const response = await api.get('/api/blogs')
+      assert.strictEqual(response.body.length, blogData.blogs.length)
+    })
+    
+    test('creating new blog post without likes defaults number of likes to 0', async () => {
+      const newBlogPost = {
+        title: 'Blog Without Likes',
+        author: 'Test Author',
+        url: 'nolikes.com'
+      }
+      await api
+        .post('/api/blogs')
+        .send(newBlogPost)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(201)
+        .expect('Content-Type', /application\/json/)
+      const response = await api.get('/api/blogs')
+      const addedPost = response.body.find(blog => blog.title === 'Blog Without Likes')
+      assert.strictEqual(addedPost.likes, 0)
+    })
+    
+    test('if title is missing from new blog post, backend responds with status code 400', async () => {
+      const newBlogPost = {
+        author: 'Test Author',
+        url: 'notitle.com',
+        likes: 0
+      }
+      await api
+        .post('/api/blogs')
+        .send(newBlogPost)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400)
+    })
+    
+    test('if url is missing from new blog post, backend responds with status code 400', async () => {
+      const newBlogPost = {
+        title: 'Test Title',
+        author: 'Test Author',
+        likes: 0
+      }
+      await api
+        .post('/api/blogs')
+        .send(newBlogPost)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400)
+    })
   })
 
   describe('deleting blog posts', () => {
@@ -96,6 +135,7 @@ describe('blog api', () => {
       const blog = blogData.blogs[0]
       await api
         .delete(`/api/blogs/${blog._id}`)
+        .set('Authorization', `Bearer ${token}`)
         .expect(204)
       const response = await api.get('/api/blogs')
       assert.strictEqual(response.body.length, blogData.blogs.length - 1)
@@ -106,6 +146,7 @@ describe('blog api', () => {
     test('deleting by malformatted id responds with status code 400', async () => {
       const errorResponse = await api
         .delete('/api/blogs/1234abcd')
+        .set('Authorization', `Bearer ${token}`)
         .expect(400)
       assert.strictEqual(errorResponse.body.error, 'malformatted id')
       const response = await api.get('/api/blogs')
