@@ -161,7 +161,8 @@ describe('blog api', () => {
         title: 'Updated Title',
         author: 'Updated Author',
         url: 'updated.com',
-        likes: 0
+        likes: 0,
+        user: 'testId'
       }
       await api
         .put(`/api/blogs/${blog._id}`)
@@ -178,7 +179,8 @@ describe('blog api', () => {
         title: 'Updated Title',
         author: 'Updated Author',
         url: 'updated.com',
-        likes: 0
+        likes: 0,
+        user: 'testId'
       }
       const errorResponse = await api
         .put('/api/blogs/1234abcd')
